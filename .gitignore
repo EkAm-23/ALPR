@@ -15,3 +15,4 @@ trocr_lora_adapters/
 /.huggingface_cache
 /data
 /trocr_lora_adapters
+/actions-runner
