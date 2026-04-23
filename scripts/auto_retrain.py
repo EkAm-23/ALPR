@@ -1,5 +1,6 @@
 import sys
 import time
+import json
 import subprocess
 import os
 import datetime
@@ -25,6 +26,13 @@ MODEL_VERSION_FILE = "model_version.txt"
 
 # File that counts total continuous-training cycles completed.
 CT_CYCLE_FILE = "data/.ct_cycle_count"
+
+# Training history log — one JSON record per CT cycle.
+# Stored at DEP/logs/training_history.jsonl (JSON Lines format)
+LOG_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "logs", "training_history.jsonl"
+)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -71,6 +79,23 @@ def increment_ct_cycle(backend_dir):
     with open(path, "w") as f:
         f.write(str(cycle))
     return cycle
+
+
+def log_training_event(version, ct_cycle, start_time, end_time):
+    """Append a single training record to logs/training_history.jsonl."""
+    duration_secs = (end_time - start_time).total_seconds()
+    record = {
+        "ct_cycle":      ct_cycle,
+        "model_version": version,
+        "start_time":    start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time":      end_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "duration_mins": round(duration_secs / 60, 2),
+        "duration_secs": round(duration_secs, 1),
+    }
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    with open(LOG_FILE, "a") as f:
+        f.write(json.dumps(record) + "\n")
+    print(f"  📋 Training log updated: {LOG_FILE}")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -128,6 +153,7 @@ def trigger_retraining():
         # Outputs: trocr_lora_adapters/adapter_model.safetensors
         #          trocr_lora_adapters/adapter_config.json
         print("\n[Step 1/5] Running LoRA fine-tuning...")
+        training_start = datetime.datetime.now()
         # Use sys.executable so we call the same Python interpreter (conda env)
         # that is running this daemon — not the system `python3`.
         subprocess.run(
@@ -144,7 +170,9 @@ def trigger_retraining():
             cwd=backend_dir,
             check=True
         )
-        print("  ✅ LoRA training complete.")
+        training_end = datetime.datetime.now()
+        duration_min = round((training_end - training_start).total_seconds() / 60, 2)
+        print(f"  ✅ LoRA training complete. Duration: {duration_min} min")
 
         # ── Step 2/5: DVC versioning + git commit ─────────────────────
         # Track the new adapter weights with DVC and commit the pointer
@@ -154,16 +182,19 @@ def trigger_retraining():
         new_version    = bump_patch_version(old_version)
         write_model_version(backend_dir, new_version)
 
+        # Log the training event now that we know the final version and duration
+        log_training_event(new_version, ct_cycle, training_start, training_end)
+
         print(f"\n[Step 2/5] Versioning weights with DVC "
               f"({old_version} → {new_version}, CT Cycle #{ct_cycle})...")
 
         # Tell DVC to hash the new adapter files and update the .dvc pointer
         subprocess.run(["dvc", "add", LORA_ADAPTER_DIR], cwd=backend_dir, check=True)
 
-        # Commit the updated .dvc pointer + version file to git
+        # Commit the updated .dvc pointer + version file + training log to git
         commit_msg = f"model: TrOCR LoRA {new_version} - CT Cycle #{ct_cycle}"
         subprocess.run(
-            ["git", "add", f"{LORA_ADAPTER_DIR}.dvc", MODEL_VERSION_FILE],
+            ["git", "add", f"{LORA_ADAPTER_DIR}.dvc", MODEL_VERSION_FILE, LOG_FILE],
             cwd=backend_dir, check=True
         )
         subprocess.run(

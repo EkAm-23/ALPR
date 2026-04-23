@@ -14,7 +14,7 @@ def simulate_live_traffic():
         
     df = pd.read_csv(metadata_path)
     # Exclude the first 200 items (reserved for TrOCR training) and limit to 50 items
-    sim_df = df.iloc[450:600]
+    sim_df = df.iloc[0:800]
     
     print(f"Loaded {len(sim_df)} images for live MLOps traffic simulation.")
     print("Hitting FastAPI Server at http://localhost:8000/process-image")
