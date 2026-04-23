@@ -12,7 +12,9 @@ def simulate_live_traffic():
         print("Metadata not found. Wait for dataset extraction to complete.")
         return
         
-    df = pd.read_csv(metadata_path)
+    df = pd.read_csv(metadata_path, encoding='utf-8', skipinitialspace=True)
+    # Strip any stray \r characters from all string columns (Windows CRLF CSVs)
+    df = df.apply(lambda col: col.str.strip() if col.dtype == 'object' else col)
     # Exclude the first 200 items (reserved for TrOCR training) and limit to 50 items
     sim_df = df.iloc[0:800]
     
@@ -20,7 +22,7 @@ def simulate_live_traffic():
     print("Hitting FastAPI Server at http://localhost:8000/process-image")
     
     for idx, row in tqdm(sim_df.iterrows(), total=len(sim_df)):
-        filename = row['filename']
+        filename = row['filename'].strip()   # Strip \r\n from Windows-encoded CSVs
         img_path = os.path.join(img_dir, filename)
         
         if not os.path.exists(img_path):
