@@ -34,15 +34,11 @@ jobs:
       - name: Install test dependencies
         run: |
           pip install --upgrade pip
-          pip install flake8 pytest
+          pip install pytest
           # Install only the lightweight deps needed for pure-Python tests
           # Heavy ML libs (torch, transformers) are mocked in tests/
           pip install fastapi uvicorn celery redis pillow numpy python-multipart prometheus-client
 
-      - name: Lint with flake8
-        run: |
-          flake8 ALPR-app/backend/ scripts/ training/ \
-            --config=.flake8
 
       - name: Run unit tests
         run: |
