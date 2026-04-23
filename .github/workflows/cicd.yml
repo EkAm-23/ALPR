@@ -59,20 +59,32 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build and start Docker Compose app
-        working-directory: ALPR-app
         run: |
-          docker compose up -d --build
+          # Always use the fixed absolute path so bind mounts in docker-compose.yml
+          # resolve to DEP/ALPR-app regardless of where the runner checked out code.
+          docker compose \
+            --project-directory /Users/ekamsinghsethi/Desktop/DEP/ALPR-app \
+            -f /Users/ekamsinghsethi/Desktop/DEP/ALPR-app/docker-compose.yml \
+            up -d --build
           echo "✅ Docker Compose services started"
 
       - name: Verify backend is healthy
-        working-directory: ALPR-app
         run: |
           echo "Waiting 15s for containers to initialise..."
           sleep 15
-          docker compose ps
+          docker compose \
+            --project-directory /Users/ekamsinghsethi/Desktop/DEP/ALPR-app \
+            -f /Users/ekamsinghsethi/Desktop/DEP/ALPR-app/docker-compose.yml \
+            ps
           # Hard-fail if backend or worker containers are not Up
-          docker compose ps backend | grep -q "Up" || { echo "❌ backend is DOWN"; exit 1; }
-          docker compose ps worker  | grep -q "Up" || { echo "❌ worker is DOWN";  exit 1; }
+          docker compose \
+            --project-directory /Users/ekamsinghsethi/Desktop/DEP/ALPR-app \
+            -f /Users/ekamsinghsethi/Desktop/DEP/ALPR-app/docker-compose.yml \
+            ps backend | grep -q "Up" || { echo "❌ backend is DOWN"; exit 1; }
+          docker compose \
+            --project-directory /Users/ekamsinghsethi/Desktop/DEP/ALPR-app \
+            -f /Users/ekamsinghsethi/Desktop/DEP/ALPR-app/docker-compose.yml \
+            ps worker  | grep -q "Up" || { echo "❌ worker is DOWN";  exit 1; }
           echo "✅ All required containers are healthy"
 
 
