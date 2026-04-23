@@ -91,11 +91,12 @@ jobs:
 
       - name: Start MLOps auto-retrain daemon
         run: |
-          mkdir -p logs
+          mkdir -p /Users/ekamsinghsethi/Desktop/DEP/logs
           # Launch daemon using the project's conda Python env
+          # Log written to a fixed absolute path so it's always accessible from DEP/
           nohup /Users/ekamsinghsethi/miniconda3/envs/dep/bin/python \
-            scripts/auto_retrain.py \
-            > logs/auto_retrain.log 2>&1 &
+            /Users/ekamsinghsethi/Desktop/DEP/scripts/auto_retrain.py \
+            > /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log 2>&1 &
           DAEMON_PID=$!
           echo "$DAEMON_PID" > /tmp/alpr_retrain.pid
           echo "✅ auto_retrain daemon started with PID $DAEMON_PID"
@@ -106,7 +107,7 @@ jobs:
             echo "✅ Daemon is running"
           else
             echo "❌ Daemon crashed on startup! Last log output:"
-            tail -30 logs/auto_retrain.log
+            tail -30 /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log
             exit 1
           fi
 
@@ -119,5 +120,5 @@ jobs:
           echo "  Backend API: http://localhost:8000/docs"
           echo "  Prometheus:  http://localhost:9090"
           echo "  Grafana:     http://localhost:3000"
-          echo "  Retrain log: logs/auto_retrain.log"
+          echo "  Retrain log: /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log"
           echo "=============================================="
