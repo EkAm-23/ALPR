@@ -75,64 +75,18 @@ jobs:
           docker compose ps worker  | grep -q "Up" || { echo "❌ worker is DOWN";  exit 1; }
           echo "✅ All required containers are healthy"
 
-      - name: Stop any existing auto-retrain daemon
-        run: |
-          if [ -f /tmp/alpr_retrain.pid ]; then
-            OLD_PID=$(cat /tmp/alpr_retrain.pid)
-            if kill -0 "$OLD_PID" 2>/dev/null; then
-              echo "Stopping previous daemon (PID $OLD_PID)..."
-              kill "$OLD_PID"
-              sleep 2
-            fi
-          fi
-          # Fallback: kill by script name
-          pkill -f "auto_retrain.py" || true
-          sleep 1
-
-      - name: Start MLOps auto-retrain daemon
-        run: |
-          mkdir -p /Users/ekamsinghsethi/Desktop/DEP/logs
-          LOG=/Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log
-          SCRIPT=/Users/ekamsinghsethi/Desktop/DEP/scripts/auto_retrain.py
-          PYTHON=/Users/ekamsinghsethi/miniconda3/envs/dep/bin/python
-
-          # Use python to double-fork the daemon so it fully detaches from
-          # the runner shell. Plain nohup is unreliable on macOS once the
-          # parent shell exits.
-          $PYTHON -c "
-          import os, sys, subprocess
-          log    = '/Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log'
-          script = '/Users/ekamsinghsethi/Desktop/DEP/scripts/auto_retrain.py'
-          python = '/Users/ekamsinghsethi/miniconda3/envs/dep/bin/python'
-          pid = os.fork()
-          if pid > 0: sys.exit(0)
-          os.setsid()
-          pid = os.fork()
-          if pid > 0:
-              open('/tmp/alpr_retrain.pid','w').write(str(pid))
-              sys.exit(0)
-          flog = open(log, 'a')
-          subprocess.run([python, script], stdout=flog, stderr=flog)
-          "
-
-          sleep 3
-          DAEMON_PID=$(cat /tmp/alpr_retrain.pid 2>/dev/null || echo "")
-          if [ -n "$DAEMON_PID" ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
-            echo "✅ Daemon is running with PID $DAEMON_PID"
-          else
-            echo "❌ Daemon failed to start. Last log:"
-            tail -20 /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log
-            exit 1
-          fi
 
       - name: Print deployment summary
         run: |
           echo "=============================================="
           echo "  ALPR Deployment Complete"
           echo "  Model Version: $(cat model_version.txt)"
-          echo "  Frontend:   http://localhost:8080"
+          echo "  Frontend:    http://localhost:8080"
           echo "  Backend API: http://localhost:8000/docs"
           echo "  Prometheus:  http://localhost:9090"
           echo "  Grafana:     http://localhost:3000"
-          echo "  Retrain log: /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log"
+          echo ""
+          echo "  ⚠️  Start the MLOps retrain daemon manually:"
+          echo "  cd /Users/ekamsinghsethi/Desktop/DEP"
+          echo "  python scripts/auto_retrain.py"
           echo "=============================================="
