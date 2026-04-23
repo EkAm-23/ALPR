@@ -1,0 +1,127 @@
+name: ALPR CI/CD Pipeline
+
+on:
+  push:
+    branches: [LoRA, main]
+  pull_request:
+    branches: [LoRA, main]
+  workflow_dispatch:   # Allow manual trigger from GitHub UI
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # JOB 1 — Tests (runs on GitHub-hosted cloud runner)
+  # ──────────────────────────────────────────────────────────────────
+  test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('ALPR-app/backend/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8 pytest
+          # Install only the lightweight deps needed for pure-Python tests
+          # Heavy ML libs (torch, transformers) are mocked in tests/
+          pip install fastapi uvicorn celery redis pillow numpy python-multipart prometheus-client
+
+      - name: Lint with flake8
+        run: |
+          flake8 ALPR-app/backend/ scripts/ training/ \
+            --config=.flake8
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --tb=short
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB 2 — Deploy (runs on your Mac via the self-hosted runner)
+  # Only executes on pushes to the LoRA branch, not on PRs
+  # ──────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Local Stack
+    needs: test
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/LoRA' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and start Docker Compose app
+        working-directory: ALPR-app
+        run: |
+          docker compose up -d --build
+          echo "✅ Docker Compose services started"
+
+      - name: Verify backend is healthy
+        working-directory: ALPR-app
+        run: |
+          echo "Waiting 15s for containers to initialise..."
+          sleep 15
+          docker compose ps
+          # Hard-fail if backend or worker containers are not Up
+          docker compose ps backend | grep -q "Up" || { echo "❌ backend is DOWN"; exit 1; }
+          docker compose ps worker  | grep -q "Up" || { echo "❌ worker is DOWN";  exit 1; }
+          echo "✅ All required containers are healthy"
+
+      - name: Stop any existing auto-retrain daemon
+        run: |
+          if [ -f /tmp/alpr_retrain.pid ]; then
+            OLD_PID=$(cat /tmp/alpr_retrain.pid)
+            if kill -0 "$OLD_PID" 2>/dev/null; then
+              echo "Stopping previous daemon (PID $OLD_PID)..."
+              kill "$OLD_PID"
+              sleep 2
+            fi
+          fi
+          # Fallback: kill by script name
+          pkill -f "auto_retrain.py" || true
+          sleep 1
+
+      - name: Start MLOps auto-retrain daemon
+        run: |
+          mkdir -p logs
+          # Launch daemon using the project's conda Python env
+          nohup /Users/ekamsinghsethi/miniconda3/envs/dep/bin/python \
+            scripts/auto_retrain.py \
+            > logs/auto_retrain.log 2>&1 &
+          DAEMON_PID=$!
+          echo "$DAEMON_PID" > /tmp/alpr_retrain.pid
+          echo "✅ auto_retrain daemon started with PID $DAEMON_PID"
+
+          # Give it 5 seconds to confirm it hasn't crashed immediately
+          sleep 5
+          if kill -0 "$DAEMON_PID" 2>/dev/null; then
+            echo "✅ Daemon is running"
+          else
+            echo "❌ Daemon crashed on startup! Last log output:"
+            tail -30 logs/auto_retrain.log
+            exit 1
+          fi
+
+      - name: Print deployment summary
+        run: |
+          echo "=============================================="
+          echo "  ALPR Deployment Complete"
+          echo "  Model Version: $(cat model_version.txt)"
+          echo "  Frontend:   http://localhost:8080"
+          echo "  Backend API: http://localhost:8000/docs"
+          echo "  Prometheus:  http://localhost:9090"
+          echo "  Grafana:     http://localhost:3000"
+          echo "  Retrain log: logs/auto_retrain.log"
+          echo "=============================================="

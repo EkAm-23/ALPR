@@ -1,0 +1,27 @@
+[flake8]
+max-line-length = 120
+extend-ignore =
+    # Line too long (handled by max-line-length above)
+    E501,
+    # Line break before/after binary operator
+    W503,
+    W504,
+    # Module level import not at top of file (common in Celery/FastAPI patterns)
+    E402,
+    # Whitespace before ':'
+    E203,
+    # Do not compare types — common in ML code
+    E721
+
+exclude =
+    .git,
+    __pycache__,
+    .DS_Store,
+    node_modules,
+    .huggingface_cache,
+    trocr_lora_adapters,
+    actions-runner,
+    */migrations/*,
+    ALPR-app/frontend/,
+    NAFNet/,
+    DarkIR/
