@@ -92,22 +92,36 @@ jobs:
       - name: Start MLOps auto-retrain daemon
         run: |
           mkdir -p /Users/ekamsinghsethi/Desktop/DEP/logs
-          # Launch daemon using the project's conda Python env
-          # Log written to a fixed absolute path so it's always accessible from DEP/
-          nohup /Users/ekamsinghsethi/miniconda3/envs/dep/bin/python \
-            /Users/ekamsinghsethi/Desktop/DEP/scripts/auto_retrain.py \
-            > /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log 2>&1 &
-          DAEMON_PID=$!
-          echo "$DAEMON_PID" > /tmp/alpr_retrain.pid
-          echo "✅ auto_retrain daemon started with PID $DAEMON_PID"
+          LOG=/Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log
+          SCRIPT=/Users/ekamsinghsethi/Desktop/DEP/scripts/auto_retrain.py
+          PYTHON=/Users/ekamsinghsethi/miniconda3/envs/dep/bin/python
 
-          # Give it 5 seconds to confirm it hasn't crashed immediately
-          sleep 5
-          if kill -0 "$DAEMON_PID" 2>/dev/null; then
-            echo "✅ Daemon is running"
+          # Use python to double-fork the daemon so it fully detaches from
+          # the runner shell. Plain nohup is unreliable on macOS once the
+          # parent shell exits.
+          $PYTHON -c "
+          import os, sys, subprocess
+          log    = '/Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log'
+          script = '/Users/ekamsinghsethi/Desktop/DEP/scripts/auto_retrain.py'
+          python = '/Users/ekamsinghsethi/miniconda3/envs/dep/bin/python'
+          pid = os.fork()
+          if pid > 0: sys.exit(0)
+          os.setsid()
+          pid = os.fork()
+          if pid > 0:
+              open('/tmp/alpr_retrain.pid','w').write(str(pid))
+              sys.exit(0)
+          flog = open(log, 'a')
+          subprocess.run([python, script], stdout=flog, stderr=flog)
+          "
+
+          sleep 3
+          DAEMON_PID=$(cat /tmp/alpr_retrain.pid 2>/dev/null || echo "")
+          if [ -n "$DAEMON_PID" ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
+            echo "✅ Daemon is running with PID $DAEMON_PID"
           else
-            echo "❌ Daemon crashed on startup! Last log output:"
-            tail -30 /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log
+            echo "❌ Daemon failed to start. Last log:"
+            tail -20 /Users/ekamsinghsethi/Desktop/DEP/logs/auto_retrain.log
             exit 1
           fi
 
