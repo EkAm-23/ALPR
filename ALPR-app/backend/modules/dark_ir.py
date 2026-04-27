@@ -25,8 +25,8 @@ def _load_darkir_model():
     _add_darkir_to_path()
 
     import torch
-    from DarkIR.archs.DarkIR import DarkIR
-    from DarkIR.options.options import parse
+    from archs.DarkIR import DarkIR
+    from options.options import parse
 
     opt = parse(DARKIR_CONFIG_PATH)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")

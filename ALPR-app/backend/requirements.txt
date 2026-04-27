@@ -13,3 +13,6 @@ transformers
 torch
 peft              # Parameter Efficient Fine-Tuning — used to load LoRA adapter weights at inference
 prometheus-client # Exposes /metrics endpoint for Prometheus scraping
+ptflops==0.7.3
+einops==0.8.0
+kornia==0.7.2

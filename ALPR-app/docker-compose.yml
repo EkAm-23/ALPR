@@ -19,6 +19,7 @@ services:
       - shared_uploads:/app/shared_uploads
       - hf_cache:/app/.huggingface_cache                            # Persistent base model cache
       - lora_weights:/app/lora_adapters                             # Persistent LoRA adapter weights
+      - ../DarkIR:/app/DarkIR                                       # DarkIR model directory
     ports:
       - "8000:8000"
     depends_on:
@@ -41,6 +42,7 @@ services:
       - shared_uploads:/app/shared_uploads
       - hf_cache:/app/.huggingface_cache
       - lora_weights:/app/lora_adapters                             # Persistent LoRA adapter weights
+      - ../DarkIR:/app/DarkIR                                       # DarkIR model directory
     # Spawn 4 workers, kill and refresh a worker after 5 tasks to prevent memory leaks
     command: celery -A tasks.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=5
     depends_on:
