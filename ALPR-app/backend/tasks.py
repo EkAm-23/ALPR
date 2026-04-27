@@ -74,7 +74,7 @@ def process_alpr_task(file_path, true_label=None):
             brightness = -1.0
 
         # --- ML Logic Start ---
-
+        original_image = process_with_nafnet(original_image)
         # Only apply the selected restoration module
         nafnet_image = None
         darkir_image = None
@@ -94,7 +94,7 @@ def process_alpr_task(file_path, true_label=None):
             derain_image = detection_image
             detection_source = "Routed to DeRain Engine"
         else:
-            detection_image = process_with_nafnet(original_image)
+            detection_image = original_image
             nafnet_image = detection_image
             detection_source = "Routed to NAFNet Engine"
 
@@ -161,7 +161,7 @@ def process_alpr_task(file_path, true_label=None):
                 padded = np.pad(plate_crop_raw, ((pad_y, pad_y), (pad_x, pad_x), (0, 0)), mode='constant', constant_values=255)
                 try:
                     # Run the padded crop through NAFNet to deblur and super-resolve the image
-                    deblurred = process_with_nafnet(padded)
+                    deblurred = process_with_nafnet(plate_crop_raw)
                     sr_result = deblurred 
                     
                     # Convert to RGB just in case
