@@ -65,7 +65,14 @@ export function UploadWorkspace({
             <div className={styles.scanLine} />
           </div>
           <div className={styles.processingText}>
-            <h4>Pipeline Running</h4>
+            <h4>
+              Pipeline Running
+              <span className={styles.loadingDots}>
+                <span />
+                <span />
+                <span />
+              </span>
+            </h4>
             <p>
               Classifying environment, applying restoration, running YOLO detection
               and TrOCR — this takes a few seconds.

@@ -1,0 +1,3 @@
+[submodule "DarkIR"]
+	path = DarkIR
+	url = https://github.com/cidautai/DarkIR.git
