@@ -60,25 +60,25 @@ export function UploadWorkspace({
 
       {/* Processing state */}
       {status === 'PENDING' && (
-        <div className={styles.processingCard}>
-          <div className={styles.scanWrapper}>
-            <div className={styles.scanLine} />
+        <>
+          <div className={styles.processingCard}>
+            <div className={styles.scanWrapper}>
+              <div className={styles.scanLine} />
+            </div>
+            <div className={styles.processingText}>
+              <h4>Pipeline Running</h4>
+              <p>
+                Classifying environment, applying restoration, running YOLO detection
+                and TrOCR — this takes a few seconds.
+              </p>
+            </div>
           </div>
-          <div className={styles.processingText}>
-            <h4>
-              Pipeline Running
-              <span className={styles.loadingDots}>
-                <span />
-                <span />
-                <span />
-              </span>
-            </h4>
-            <p>
-              Classifying environment, applying restoration, running YOLO detection
-              and TrOCR — this takes a few seconds.
-            </p>
+          
+          <div className={styles.rollingLoaderContainer}>
+            <div className={styles.rollingLoader} />
+            <p className={styles.rollingLoaderText}>Just a minute...</p>
           </div>
-        </div>
+        </>
       )}
 
       {/* Error */}
