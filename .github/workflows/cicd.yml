@@ -2,9 +2,9 @@ name: ALPR CI/CD Pipeline
 
 on:
   push:
-    branches: [LoRA, main]
+    branches: [main]
   pull_request:
-    branches: [LoRA, main]
+    branches: [main]
   workflow_dispatch:   # Allow manual trigger from GitHub UI
 
 jobs:
@@ -46,13 +46,13 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────
   # JOB 2 — Deploy (runs on your Mac via the self-hosted runner)
-  # Only executes on pushes to the LoRA branch, not on PRs
+  # Only executes on pushes to main, not on PRs
   # ──────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy to Local Stack
     needs: test
     runs-on: self-hosted
-    if: github.ref == 'refs/heads/LoRA' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
       - name: Checkout code
