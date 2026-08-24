@@ -1,30 +1,12 @@
-# 🚗 ALPR — Automatic License Plate Recognition
+# ALPR — Automatic License Plate Recognition
 
 > **An end-to-end MLOps system for Indian license plate recognition**, featuring adaptive image restoration, deep-learning OCR with LoRA fine-tuning, a self-healing continuous training loop, and a fully monitored microservice deployment.
 
 ---
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [System Architecture](#system-architecture)
-3. [ML Pipeline](#ml-pipeline)
-   - [Stage 1 — Image Restoration (Adaptive Routing)](#stage-1--image-restoration-adaptive-routing)
-   - [Stage 2 — License Plate Detection](#stage-2--license-plate-detection)
-   - [Stage 3 — OCR with TTA](#stage-3--ocr-with-tta)
-4. [Models Used](#models-used)
-5. [MLOps — Continuous Training Loop](#mlops--continuous-training-loop)
-6. [Monitoring & Observability](#monitoring--observability)
-7. [Services & Ports](#services--ports)
-8. [CI/CD Pipeline](#cicd-pipeline)
-9. [Project Structure](#project-structure)
-10. [Running Locally](#running-locally)
-
----
-
 ## Overview
 
-This project was built as a third-year engineering design project. It goes beyond a standard "run a model and show output" approach — the system is **production-architecture grade**, designed around real MLOps principles:
+This project was built as a third-year engineering project.
 
 - **Adaptive pre-processing**: incoming images are mathematically classified and routed to the optimal restoration model (DarkIR for night, DeHaze, DeRain, or NAFNet).
 - **Deep OCR with LoRA**: Microsoft TrOCR fine-tuned with LoRA adapters trained on domain-specific Indian plate data.
@@ -93,11 +75,9 @@ This project was built as a third-year engineering design project. It goes beyon
 
 ## ML Pipeline
 
-Every image submitted to the API goes through a 3-stage ML pipeline, executed asynchronously by the Celery worker.
+Every image submitted to the API goes through a 3-stage ML pipeline, executed asynchronously by Celery workers.
 
 ### Stage 1 — Image Restoration (Adaptive Routing)
-
-The system **does not blindly apply one restoration model**. Instead, it mathematically analyses each image and routes it:
 
 | Condition Detected | Routing Decision | Model Used |
 |---|---|---|
@@ -106,26 +86,16 @@ The system **does not blindly apply one restoration model**. Instead, it mathema
 | Low Laplacian variance + low contrast | Rain streaks / blur | **DeRain** |
 | Normal / clear image | Standard deblur | **NAFNet** |
 
-The classifier (`modules/classifier.py`) uses **Dark Channel Prior (DCP)**, Laplacian variance, and HSV saturation — all computed with OpenCV, with zero inference overhead.
-
-After restoration, **NAFNet is always applied to the extracted plate crop** as a super-resolution / deblurring pass before OCR.
-
 ### Stage 2 — License Plate Detection
 
-A fine-tuned **YOLOv8** model (`yolov8_plate.pt`) detects bounding boxes of license plates in the restored image. Multiple plates are handled — the one with the **highest confidence score** is selected. A red bounding box is drawn on the annotated output image.
+A fine-tuned **YOLOv8** model (`yolov8_plate.pt`) detects bounding boxes of license plates in the restored image.
 
 ### Stage 3 — OCR with TTA
 
 **Test-Time Augmentation (TTA)** is applied to improve OCR robustness:
 
-1. The detected plate is cropped with a 5% margin.
-2. The crop is run through **4 different white-padding scales** (0%, 5%, 10%, 15%).
-3. Each padded crop is deblurred by NAFNet, then passed through **Microsoft TrOCR** (fine-tuned with LoRA adapters if available).
-4. The 4 predictions are **majority-voted** — the most common text wins; the highest-confidence run of that text is chosen as the final result.
-
+Passed through **Microsoft TrOCR** (fine-tuned with LoRA adapters if available).
 Post-processing applies **strict Indian plate formatting** (2-2-2-4 character block: `MH 12 AB 1234`), with character-level correction of common OCR confusions (e.g., `0↔O`, `1↔I`, `5↔S`).
-
-Finally, the **RTO metadata parser** extracts the state and district from the plate prefix.
 
 ---
 
@@ -204,30 +174,6 @@ Every CT cycle is logged to `logs/training_history.jsonl`:
   "duration_mins": 14.28
 }
 ```
-
----
-
-## Monitoring & Observability
-
-The FastAPI backend exposes a `/metrics` endpoint scraped by Prometheus. Custom metrics are emitted after every inference:
-
-| Metric | Type | Description |
-|---|---|---|
-| `alpr_ocr_confidence` | Gauge | Raw TrOCR confidence score |
-| `alpr_ocr_length` | Histogram | Length of predicted plate string |
-| `alpr_image_blur_score` | Gauge | Laplacian variance — tracks camera focus degradation |
-| `alpr_image_brightness` | Gauge | Mean pixel intensity — tracks day/night shift |
-| `alpr_data_drift_score` | Gauge | Compound drift proxy (blur + brightness + confidence) |
-| `alpr_inference_latency_seconds` | Histogram | Full PyTorch pipeline latency |
-| `alpr_bbox_count` | Histogram | Plates detected per frame |
-| `alpr_exact_match` | Gauge | Exact match vs. ground truth (simulated mode) |
-| `alpr_character_accuracy` | Gauge | Character-level accuracy vs. ground truth |
-| `alpr_edit_distance` | Histogram | Levenshtein distance vs. ground truth |
-| `alpr_invalid_format_total` | Counter | Predictions violating the `XX-00-XX-0000` plate format |
-| `alpr_delta_queue_size` | Gauge | Images waiting for CT — triggers re-training |
-| `alpr_quarantine_queue_size` | Gauge | Images quarantined for human review |
-
-All metrics are visualised in **Grafana** at `http://localhost:3000`.
 
 ---
 
